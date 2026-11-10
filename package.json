@@ -1,6 +1,6 @@
 {
   "name": "agent-adapter",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Run Claude Code and Codex CLI on AgentRouter models through a local Anthropic/OpenAI bridge.",
   "type": "module",
   "bin": {

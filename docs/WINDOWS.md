@@ -23,19 +23,45 @@ That session uses OmniRoute. AgentAdapter only changes routing inside `cc-agent`
 
 ## 2. Install
 
+Without a clone (downloads the repository archive, installs, cleans up):
+
+```powershell
+irm https://raw.githubusercontent.com/mertgoevse-wq/AgentAdapter/main/scripts/bootstrap.ps1 | iex
+```
+
+From an existing clone, any of these work:
+
+```powershell
+.\scripts\install.cmd
+```
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
+```
+
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
 .\scripts\install.ps1
 ```
 
+`install.cmd` is the double-click/copy-paste path: it bypasses the execution
+policy for that one process, so nothing on the machine changes.
+
 The installer:
 
+- finds Node 20+ (`AGENTROUTER_NODE`, PATH, `%ProgramFiles%\nodejs`, nvm) and
+  reports the exact path it used
 - copies the app to `%LOCALAPPDATA%\Programs\agentrouter`
-- creates `agentrouter.cmd`, `cc-agent.cmd`, `codex-agent.cmd`
+- creates `agentrouter.cmd`, `cc-agent.cmd`, `codex-agent.cmd` that call Node by
+  its absolute path, with a fallback to `node` on PATH
 - adds that folder to the **user** PATH (no admin, no machine-wide change)
+- verifies the installed copy with `agentrouter version`
 - records the change in `%APPDATA%\agentrouter\install.json` for `agentrouter undo`
 
 Open a **new** PowerShell window so the PATH is visible.
+
+If anything fails, the installer prints the message and the failing line. Report
+those two lines instead of a screenshot of a flashing window.
 
 ## 3. Store the key
 
@@ -64,7 +90,15 @@ Pick a model with the arrow keys and press Enter. This process gets:
 - `ANTHROPIC_BASE_URL=http://127.0.0.1:<port>`
 - `ANTHROPIC_AUTH_TOKEN=<local bridge token>`
 - `ANTHROPIC_MODEL=<chosen model>`
+- `ANTHROPIC_DEFAULT_OPUS_MODEL`, `ANTHROPIC_DEFAULT_SONNET_MODEL`,
+  `ANTHROPIC_DEFAULT_HAIKU_MODEL` — all pinned to the same model, because
+  Claude Code otherwise sends built-in Claude IDs for background tasks and the
+  `/model` aliases, which AgentRouter does not serve
 - `CLAUDE_CODE_MAX_CONTEXT_TOKENS=200000`
+
+`ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_PROFILE` and the
+Bedrock/Vertex switches are removed from the child process, so a leftover
+credential cannot bypass the bridge.
 
 Nothing else changes. The next plain `claude` session still uses OmniRoute.
 
@@ -157,9 +191,23 @@ agentrouter undo
 
 Removes the desktop profile (restoring `_meta.json`), autostart entry, launcher links and the user PATH entry. Add `--purge` to delete the key and logs as well.
 
+## 10. Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `install.ps1 cannot be loaded because running scripts is disabled` | PowerShell execution policy | Use `scripts\install.cmd`, or `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1` |
+| `Node.js 20 or newer was not found` | Node missing, too old, or installed after the shell opened | `winget install OpenJS.NodeJS.LTS`, then open a **new** PowerShell |
+| `cc-agent: "claude" was not found in PATH` | Claude Code not installed, or `npm`'s global folder is not on PATH | `npm install -g @anthropic-ai/claude-code`, reopen the terminal. The launcher also checks `%APPDATA%\npm`, `%USERPROFILE%\.local\bin` and `%LOCALAPPDATA%\Programs\claude` |
+| `spawn EINVAL` when starting Claude Code or Codex | Node refuses to spawn `.cmd` shims directly (CVE-2024-27980, Node 20.12+). Fixed by routing shims through `cmd.exe`; an old installed copy still shows it | Reinstall with the current `install.ps1` so the fixed `src\launch.js` is in place |
+| `claude` starts but reports `There's an issue with the selected model` | The request reached AgentRouter with a model it does not serve | `agentrouter models` to list valid IDs; `cc-agent -m <id>` |
+| Claude Code exits immediately after `agentrouter` starts | A stale `ANTHROPIC_API_KEY`, OAuth token or Bedrock/Vertex switch was inherited | `cc-agent` strips all of them for its child process; check `cc-agent --dry-run` shows your model and `http://127.0.0.1:<port>` |
+| `Port 8787 is already in use` | Another bridge or app | `agentrouter serve --port 8788`, or stop the other process |
+
+Diagnostics: `agentrouter status`, `agentrouter doctor --quick`, then
+`%APPDATA%\agentrouter\logs\agentrouter.log`.
+
 ## Notes
 
 - No administrator rights are required at any point.
-- If PowerShell blocks the script, use `Set-ExecutionPolicy -Scope Process Bypass` as shown; this affects only the current window.
-- If `node` is not on PATH after installation, install Node 20+ from nodejs.org and reopen PowerShell.
+- `npm install -g .` from the clone also works; npm writes its own `.cmd` shims to `%APPDATA%\npm`. `agentrouter undo` only removes what `install.ps1` created.
 - If port 8787 is taken by another tool, `agentrouter serve --port 8788` and `agentrouter desktop on --port 8788` use a free port; the desktop entry records the actual port.

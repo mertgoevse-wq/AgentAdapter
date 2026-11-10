@@ -85,11 +85,22 @@ Codex' Bubblewrap-Sandbox funktioniert unter Termux/PRoot nicht. `codex-agent` e
 
 ### Windows
 
+Ohne Klon (lädt das Repository-Archiv, installiert, räumt auf):
+
+```powershell
+irm https://raw.githubusercontent.com/mertgoevse-wq/AgentAdapter/main/scripts/bootstrap.ps1 | iex
+```
+
+Aus einem vorhandenen Klon:
+
+```powershell
+.\scripts\install.cmd
+```
+
 ```powershell
 git clone https://github.com/mertgoevse-wq/AgentAdapter.git
 cd AgentAdapter
-Set-ExecutionPolicy -Scope Process Bypass
-.\scripts\install.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
 ```
 
 Ein **neues** PowerShell-Fenster öffnen, dann:
@@ -101,7 +112,9 @@ codex-agent
 agentrouter desktop on
 ```
 
-Der Installer nutzt `%LOCALAPPDATA%\Programs\agentrouter`, trägt den Ordner nur in den **Benutzer**-PATH ein und braucht keine Administratorrechte.
+Der Installer nutzt `%LOCALAPPDATA%\Programs\agentrouter`, trägt den Ordner nur in den **Benutzer**-PATH ein und braucht keine Administratorrechte. Er findet Node 20+ selbst, ruft Node in den `.cmd`-Startern über den absoluten Pfad auf und prüft die Installation mit `agentrouter version`.
+
+Claude Code und Codex sind unter Windows `.cmd`-Shims, die Node seit 20.12 nicht mehr direkt startet (`spawn EINVAL`). `cc-agent` und `codex-agent` starten sie deshalb über `cmd.exe`.
 
 Ausführliche Koexistenz mit OmniRoute und CC-Switch: [`docs/WINDOWS.md`](../WINDOWS.md).
 

@@ -17,9 +17,17 @@ import { stopDaemon } from './service.js';
 function removeIfOurs(link, installDir) {
   try {
     const stat = fs.lstatSync(link);
-    if (!stat.isSymbolicLink()) return false;
-    const target = fs.realpathSync(link);
-    if (!target.startsWith(installDir)) return false;
+    if (stat.isSymbolicLink()) {
+      const target = fs.realpathSync(link);
+      if (!target.startsWith(installDir)) return false;
+      fs.unlinkSync(link);
+      return true;
+    }
+    // Windows launchers are regular .cmd files written by install.ps1.
+    if (!stat.isFile() || !/\.(cmd|bat)$/i.test(link)) return false;
+    const resolved = path.resolve(link).toLowerCase();
+    const prefix = `${path.resolve(installDir).toLowerCase()}${path.sep}`;
+    if (!resolved.startsWith(prefix)) return false;
     fs.unlinkSync(link);
     return true;
   } catch {

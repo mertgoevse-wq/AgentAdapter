@@ -6,6 +6,7 @@ import { fetchModels, postResponses, upstreamBaseUrl, extractErrorMessage } from
 import { ensureService, stopService, serviceStatus } from './service.js';
 import { desktopStatus } from './desktop.js';
 import { autostartStatus } from './autostart.js';
+import { toolCommand } from './launch.js';
 import { maskKey } from './util.js';
 
 function localJson(port, token, requestPath, body = null, timeout = 120000) {
@@ -53,10 +54,15 @@ function localJson(port, token, requestPath, body = null, timeout = 120000) {
 
 function versionOf(command) {
   try {
-    return execFileSync(command, ['--version'], {
+    // On Windows both CLIs are .cmd shims, which Node cannot spawn directly;
+    // toolCommand routes them through cmd.exe.
+    const invocation = toolCommand(command, ['--version']);
+    return execFileSync(invocation.command, invocation.args, {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
       timeout: 15000,
+      windowsHide: true,
+      windowsVerbatimArguments: invocation.windowsVerbatimArguments,
     })
       .trim()
       .split(/\r?\n/)[0];

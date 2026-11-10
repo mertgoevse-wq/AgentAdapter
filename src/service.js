@@ -1,6 +1,6 @@
 import http from 'node:http';
 import fs from 'node:fs';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import path from 'node:path';
 import {
   binPath,
@@ -104,8 +104,38 @@ export async function ensureService({ config, logger, mode, port: requestedPort 
   return { port, child, reused: false, mode: health.mode || mode };
 }
 
+// taskkill /T also ends the node/cmd descendants Windows would otherwise leave
+// behind; on POSIX the signal reaches the group through the shell.
+function killPid(pid, { force = false } = {}) {
+  if (!pid) return;
+  if (process.platform === 'win32') {
+    try {
+      execFileSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
+        stdio: 'ignore',
+        windowsHide: true,
+      });
+    } catch {
+      /* already gone */
+    }
+    return;
+  }
+  try {
+    process.kill(Number(pid), force ? 'SIGKILL' : 'SIGTERM');
+  } catch {
+    /* already gone */
+  }
+}
+
 export async function stopService(child) {
   if (!child || child.exitCode !== null) return;
+
+  if (process.platform === 'win32') {
+    const exited = new Promise((resolve) => child.once('exit', resolve));
+    killPid(child.pid, { force: true });
+    await Promise.race([exited, sleep(4000)]);
+    return;
+  }
+
   await new Promise((resolve) => {
     const timer = setTimeout(() => {
       try {
@@ -171,11 +201,7 @@ export async function startDaemon({ config, logger, mode }) {
 
   const ready = await waitForHealth(port, { timeoutMs: 20000 });
   if (!ready.ok) {
-    try {
-      process.kill(child.pid, 'SIGTERM');
-    } catch {
-      /* ignore */
-    }
+    killPid(child.pid, { force: true });
     throw new Error(`The background bridge did not start on port ${port}. See ${serviceLogFile}.`);
   }
 
@@ -197,23 +223,13 @@ export async function stopDaemon() {
     return { stopped: false, reason: 'stale pid file removed' };
   }
 
-  try {
-    process.kill(info.pid, 'SIGTERM');
-  } catch (error) {
-    return { stopped: false, reason: error.message };
-  }
+  killPid(info.pid);
 
   for (let attempt = 0; attempt < 30; attempt += 1) {
     if (!isProcessAlive(info.pid)) break;
     await sleep(200);
   }
-  if (isProcessAlive(info.pid)) {
-    try {
-      process.kill(info.pid, 'SIGKILL');
-    } catch {
-      /* ignore */
-    }
-  }
+  if (isProcessAlive(info.pid)) killPid(info.pid, { force: true });
   try {
     fs.unlinkSync(pidPath);
   } catch {

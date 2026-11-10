@@ -102,11 +102,22 @@ agentrouter desktop on       # writes a separate profile, then restart the app
 
 ### Windows
 
+Without a clone:
+
+```powershell
+irm https://raw.githubusercontent.com/mertgoevse-wq/AgentAdapter/main/scripts/bootstrap.ps1 | iex
+```
+
+From a clone (any of these):
+
+```powershell
+.\scripts\install.cmd
+```
+
 ```powershell
 git clone https://github.com/mertgoevse-wq/AgentAdapter.git
 cd AgentAdapter
-Set-ExecutionPolicy -Scope Process Bypass
-.\scripts\install.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1
 ```
 
 Open a **new** PowerShell window, then:
@@ -118,7 +129,9 @@ codex-agent
 agentrouter desktop on
 ```
 
-The installer uses `%LOCALAPPDATA%\Programs\agentrouter`, adds that folder to your **user** PATH, and needs no administrator rights.
+The installer uses `%LOCALAPPDATA%\Programs\agentrouter`, adds that folder to your **user** PATH, and needs no administrator rights. It finds Node 20+ itself, calls Node by absolute path from the `.cmd` wrappers, and verifies the installed copy before it finishes.
+
+Claude Code and Codex are `.cmd` shims on Windows, which Node refuses to spawn directly since 20.12 (`spawn EINVAL`). The launchers resolve the shim and run it through `cmd.exe`, so `cc-agent` and `codex-agent` start them correctly.
 
 Detailed coexistence with OmniRoute and CC-Switch: [`docs/WINDOWS.md`](docs/WINDOWS.md).
 
@@ -224,6 +237,8 @@ More: [`SECURITY.md`](SECURITY.md).
 | `codex` exits 182 on Termux | Bubblewrap sandbox unavailable in PRoot | `codex-agent` disables it automatically; do not pass `-s workspace-write` |
 | `Port 8787 is already in use` | Another bridge or app | `agentrouter serve --port 8788`, or stop the old process |
 | `claude: not found` | CLI not installed | `npm install -g @anthropic-ai/claude-code` |
+| `spawn EINVAL` on Windows | Node refuses to spawn a `.cmd` shim directly | Update to the current version; `cc-agent`/`codex-agent` route shims through `cmd.exe` |
+| `install.ps1 cannot be loaded because running scripts is disabled` | PowerShell execution policy | `scripts\install.cmd`, or `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1` |
 | Model list is empty | Key has no OpenAI-compatible models | Check the key's group in AgentRouter |
 
 Logs: `~/.config/agentrouter/logs/agentrouter.log` (`%APPDATA%\agentrouter\logs` on Windows). `agentrouter doctor` is the fastest first step.

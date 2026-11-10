@@ -222,12 +222,56 @@ Workflow `tests` (`.github/workflows/test.yml`) ran on the pushed commit:
 
 Result: **6 of 6 jobs successful** (run 42838273960, conclusion `success`). This verifies the unit suite and CLI parsing on both operating systems. It does not execute the Windows installer, the registry autostart, a live AgentRouter call, or the real Claude Desktop app.
 
+## 15. Windows launcher and installer (PowerShell 7.4 on Linux, not Windows)
+
+No Windows machine is available here. What was actually executed:
+
+```
+pwsh -NoProfile -File scripts/install.ps1      # APPDATA/LOCALAPPDATA/USERPROFILE redirected to /tmp/win
+iex (Get-Content scripts/bootstrap.ps1 -Raw)   # download + extract + install + cleanup
+node --test
+```
+
+Observed: the installer resolved Node, copied `bin src scripts docs` and the
+root files, wrote the three launchers, created `install.json`, and printed
+`Installed: AgentAdapter 0.2.0`. A generated launcher reads:
+
+```bat
+@echo off
+setlocal
+if exist "<node>" (
+  "<node>" "<installDir>\bin\cc-agent.js" %*
+) else (
+  node "<installDir>\bin\cc-agent.js" %*
+)
+```
+
+The bootstrap one-liner downloaded the archive, installed from it and removed
+the temporary files.
+
+Unit tests: **29 total, 27 passed, 2 skipped** on Linux. The two skipped tests
+run only on Windows (`process.platform === 'win32'`):
+
+- `spawning a .cmd shim directly fails` — pins the `spawn EINVAL` behaviour this
+  change works around.
+- `runTool starts a .cmd shim and keeps the arguments intact` — starts a real
+  `.cmd` file through `cmd.exe` with `hello world`, `a&b`, `(c)`, `d=e` and a
+  non-ASCII argument, and compares the child's `argv`.
+
+Those two, plus the shim-resolution and quoting tests, also run in the
+`windows-latest` jobs of the workflow. That is the first real Windows execution
+of the launcher path, but it is CI, not the reporter's laptop.
+
+The installer was **not** executed by Windows PowerShell 5.1, and the registry
+autostart, Claude Desktop and real Claude Code sessions were not exercised on
+Windows hardware.
+
 ## Not verified
 
-- Windows installation, PATH, registry autostart, `.cmd` wrappers.
+- Windows installation under Windows PowerShell 5.1, PATH refresh after login, registry autostart, and the generated `.cmd` wrappers on real hardware.
 - Claude Desktop with the real app (Windows, macOS or Linux).
 - Linux systemd autostart.
 - `--full` mode against live models.
 - Prompt-cache behavior.
 - Any macOS path.
-- Windows installer, registry autostart and `.cmd` wrappers (only the unit tests ran on Windows).
+- Windows installer on real hardware, registry autostart, and the `.cmd` wrappers outside CI.

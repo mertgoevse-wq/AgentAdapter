@@ -11,6 +11,7 @@ This repository is a zero-dependency Node.js bridge that runs Claude Code and Co
 5. **No new runtime dependencies** without a concrete reason. Node 20+ built-ins are sufficient.
 6. **Android has no background service.** `cc-agent`/`codex-agent` own the bridge lifetime and must stop it on exit.
 7. **Log without content.** Model, status, tokens and timings only. Prompts and tool output stay out of logs.
+8. **Never spawn `.cmd`/`.bat` directly on Windows.** Node 20.12+ throws `spawn EINVAL` (CVE-2024-27980) and both CLIs are npm shims there. Go through `toolCommand()` in `src/launch.js`, which resolves the shim and uses `cmd.exe /d /s /c` with quoted arguments. `test/windows.test.js` covers resolution, quoting and a real `.cmd` spawn on Windows runners.
 
 ## Commands
 

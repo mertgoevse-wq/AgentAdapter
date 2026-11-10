@@ -25,7 +25,8 @@ This file is deliberately blunt. "Implemented" means the code exists and its uni
 | `doctor` | Verified (all required checks) | Same code path | Implemented, not run |
 | Desktop profile write/restore | Verified against a simulated config library | Same code path | Implemented, not run |
 | Real Claude Desktop app | **Not tested** (app unavailable) | **Not tested** | **Not tested** |
-| Installer | Verified (`install.sh`, launcher, undo) | Same code path | `install.ps1` not run |
+| Installer | Verified (`install.sh`, launcher, undo) | Same code path | `install.ps1` executed under PowerShell 7.4 on Linux with emulated `%APPDATA%`/`%LOCALAPPDATA%`; **not run on Windows hardware** |
+| Windows `.cmd` launch | n/a | n/a | Fixed (cmd.exe wrapper) and unit-tested; the real spawn runs in the `windows-latest` CI job, not on hardware |
 | Autostart | Intentionally refused on Termux | systemd/profile code implemented, not run | Registry code implemented, not run |
 | `undo` | Verified for install + desktop | Same code path | Implemented, not run |
 | `--full` reasoning mode | Not tested live | Not tested | Not tested |
@@ -39,6 +40,11 @@ The 18 unit tests also run in GitHub Actions on `ubuntu-latest` and `windows-lat
 3. **Codex file writes failed under Termux/PRoot.** Bubblewrap returned exit 182 for writes and commands. Fixed: `codex-agent` injects `--dangerously-bypass-approvals-and-sandbox` on Termux unless the user passed their own sandbox flag; warning printed; opt-out via `AGENTROUTER_CODEX_SANDBOX=1`.
 4. **Desktop shutdown logic was inverted.** `desktop off` only stopped the daemon when it was *not* running. Fixed: always stop the recorded daemon.
 5. **Test fixture represented an Anthropic-only model with an empty endpoint list**, which the filter intentionally treats as "unknown". Fixed the fixture to `["anthropic"]`; the production filter is unchanged.
+6. **Windows: Claude Code and Codex could not be started at all.** Node 20.12+ refuses to spawn `.cmd`/`.bat` files without `shell: true` (CVE-2024-27980), and npm installs both CLIs as `.cmd` shims, so `cc-agent` died with `spawn EINVAL`. Fixed: `src/launch.js` resolves the shim (PATH, `%APPDATA%\npm`, `%USERPROFILE%\.local\bin`, `%LOCALAPPDATA%\Programs\claude`, PATHEXT order) and runs batch files through `cmd.exe /d /s /c` with quoted arguments. `doctor` uses the same resolver, so it no longer reports an installed CLI as missing on Windows.
+7. **Windows: stale credentials could bypass the bridge.** `claudeEnvironment` now removes `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_PROFILE` and the Bedrock/Vertex switches from the child process, and pins `ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL` to the selected AgentRouter model so Claude Code's background requests stop asking for Claude model IDs.
+8. **Windows: the bridge could be left running.** `cc-agent` forwarded `SIGINT` to the child on Windows, where signals are not supported and the console already delivers Ctrl+C; the process could exit before stopping the bridge. Fixed: on Windows the handler only keeps the launcher alive, and `taskkill /T /F` ends the process tree in `stopService`/`stopDaemon`.
+9. **Windows: `undo` did not remove the launchers.** They are regular `.cmd` files, not symlinks, so `removeIfOurs` skipped them. Fixed: recorded launcher files inside the install directory are removed.
+10. **Windows: installer failed without a clear reason.** `install.ps1` now resolves Node (including `%ProgramFiles%\nodejs`, nvm and `AGENTROUTER_NODE`), writes wrappers with the absolute Node path, verifies `agentrouter version`, and prints the failing line instead of a bare error. `scripts\install.cmd` avoids the execution-policy prompt, and `scripts\bootstrap.ps1` installs from a download without a clone.
 
 ## Built
 
@@ -49,14 +55,16 @@ The 18 unit tests also run in GitHub Actions on `ubuntu-latest` and `windows-lat
 - Ephemeral bridge on Android; background service with pid file for desktop use.
 - `agentrouter` commands: `login`, `models`, `setup`, `serve`, `status`, `doctor`, `desktop`, `autostart`, `undo`, `version`.
 - Claude Desktop 3P profile with a dedicated ID, explicit model entries, `_meta.json` backup and restore.
-- Windows installer with user PATH and `.cmd` wrappers; Linux/Termux installer with symlinks and profile PATH.
+- Windows installer with user PATH, absolute-Node `.cmd` wrappers, `install.cmd` and a `bootstrap.ps1` one-liner; Linux/Termux installer with symlinks and profile PATH.
+- Windows launcher that runs `.cmd` shims through `cmd.exe` instead of failing with `spawn EINVAL`.
+- 29 unit tests (11 Windows-specific: shim resolution, cmd quoting, Claude Code environment, real `.cmd` spawn on Windows runners).
 - JSONL logging with rotation and key redaction.
 - 18 unit tests with a fake upstream; no network required.
 
 ## Not built
 
 - **A real Claude Desktop integration test.** There is no Claude Desktop app on this Android device. The profile format follows the vendor documentation and the write/restore round-trip was tested; the app itself was not launched.
-- **Windows execution.** No Windows machine in this environment. `install.ps1`, the registry autostart and `%LOCALAPPDATA%` paths are implemented but unexecuted.
+- **Windows execution.** No Windows machine in this environment. `install.ps1` was executed under PowerShell 7.4 on Linux (emulated AppData paths) but not on Windows; the registry autostart, the `.cmd` wrappers and the `cmd.exe` launcher are implemented and unit-tested, with the real `.cmd` spawn covered by the `windows-latest` CI job only.
 - **Linux systemd autostart.** The code detects `systemctl --user`, but this PRoot image has no systemd, so the unit was never started.
 - **Prompt-cache preservation.** Claude Desktop sends `cache_control`; the bridge drops those fields when translating to Responses. Requests work, but upstream prompt caching is not preserved.
 - **A `developer`/`full` mode validation.** `--full` forwards reasoning and Anthropic beta fields, but only `stable` was tested live.
@@ -79,7 +87,7 @@ The 18 unit tests also run in GitHub Actions on `ubuntu-latest` and `windows-lat
 
 1. Run `agentrouter desktop on` on Windows with Claude Desktop installed; confirm the picker lists `gpt-5.6-sol` and that Chat/Cowork/Code work.
 2. Run `agentrouter desktop off`, switch CC-Switch back to NVIDIA, confirm the previous route works; then switch again.
-3. Run `scripts/install.ps1` on Windows, open a new PowerShell, run `cc-agent` and `codex-agent`.
+3. Run `scripts\install.cmd` on Windows, open a new PowerShell, run `agentrouter doctor` and then `cc-agent` and `codex-agent`.
 4. Test `agentrouter autostart on` with the Windows registry and after a reboot.
 5. Test `cc-agent --full` and compare behavior against stable.
 6. If prompt caching matters, translate `cache_control` to the Responses equivalent or document the cost.

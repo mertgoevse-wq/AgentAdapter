@@ -23,7 +23,7 @@ import { runDoctor } from './doctor.js';
 import { undo } from './undo.js';
 import { maskKey, sleep } from './util.js';
 
-const VERSION = '0.1.0';
+const VERSION = '0.2.0';
 
 const HELP = `AgentAdapter ${VERSION} - Claude Code and Codex on AgentRouter
 
