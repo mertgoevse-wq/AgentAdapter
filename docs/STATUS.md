@@ -44,7 +44,8 @@ The 18 unit tests also run in GitHub Actions on `ubuntu-latest` and `windows-lat
 7. **Windows: stale credentials could bypass the bridge.** `claudeEnvironment` now removes `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_PROFILE` and the Bedrock/Vertex switches from the child process, and pins `ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL` to the selected AgentRouter model so Claude Code's background requests stop asking for Claude model IDs.
 8. **Windows: the bridge could be left running.** `cc-agent` forwarded `SIGINT` to the child on Windows, where signals are not supported and the console already delivers Ctrl+C; the process could exit before stopping the bridge. Fixed: on Windows the handler only keeps the launcher alive, and `taskkill /T /F` ends the process tree in `stopService`/`stopDaemon`.
 9. **Windows: `undo` did not remove the launchers.** They are regular `.cmd` files, not symlinks, so `removeIfOurs` skipped them. Fixed: recorded launcher files inside the install directory are removed.
-10. **Windows: installer failed without a clear reason.** `install.ps1` now resolves Node (including `%ProgramFiles%\nodejs`, nvm and `AGENTROUTER_NODE`), writes wrappers with the absolute Node path, verifies `agentrouter version`, and prints the failing line instead of a bare error. `scripts\install.cmd` avoids the execution-policy prompt, and `scripts\bootstrap.ps1` installs from a download without a clone.
+10. **Windows: `undo` ignored the install record.** PowerShell 5.1 writes UTF-8 with a BOM, and `JSON.parse` rejects it, so `install.json` was unreadable and the PATH entry and launchers stayed behind. Fixed: the installer writes UTF-8 without a BOM and `readJson`/`readText` strip one if present.
+11. **Windows: installer failed without a clear reason.** `install.ps1` now resolves Node (including `%ProgramFiles%\nodejs`, nvm and `AGENTROUTER_NODE`), writes wrappers with the absolute Node path, verifies `agentrouter version`, and prints the failing line instead of a bare error. `scripts\install.cmd` avoids the execution-policy prompt, and `scripts\bootstrap.ps1` installs from a download without a clone.
 
 ## Built
 
@@ -57,7 +58,7 @@ The 18 unit tests also run in GitHub Actions on `ubuntu-latest` and `windows-lat
 - Claude Desktop 3P profile with a dedicated ID, explicit model entries, `_meta.json` backup and restore.
 - Windows installer with user PATH, absolute-Node `.cmd` wrappers, `install.cmd` and a `bootstrap.ps1` one-liner; Linux/Termux installer with symlinks and profile PATH.
 - Windows launcher that runs `.cmd` shims through `cmd.exe` instead of failing with `spawn EINVAL`.
-- 29 unit tests (11 Windows-specific: shim resolution, cmd quoting, Claude Code environment, real `.cmd` spawn on Windows runners).
+- 30 unit tests (12 cover the Windows path: shim resolution, cmd quoting, Claude Code environment, BOM-safe install record, real `.cmd` spawn on Windows runners).
 - JSONL logging with rotation and key redaction.
 - 18 unit tests with a fake upstream; no network required.
 

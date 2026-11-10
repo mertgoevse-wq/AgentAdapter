@@ -247,9 +247,10 @@ if exist "<node>" (
 ```
 
 The bootstrap one-liner downloaded the archive, installed from it and removed
-the temporary files.
+the temporary files. `install.json` was written without a BOM and `readJson`
+returned the recorded install directory, launcher paths and `windowsPath` flag.
 
-Unit tests: **29 total, 27 passed, 2 skipped** on Linux. The two skipped tests
+Unit tests: **30 total, 28 passed, 2 skipped** on Linux. The two skipped tests
 run only on Windows (`process.platform === 'win32'`):
 
 - `spawning a .cmd shim directly fails` — pins the `spawn EINVAL` behaviour this

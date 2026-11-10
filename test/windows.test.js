@@ -13,6 +13,7 @@ import {
   runTool,
   toolCommand,
 } from '../src/launch.js';
+import { readJson } from '../src/util.js';
 
 const onWindows = process.platform === 'win32';
 
@@ -112,6 +113,17 @@ test('Claude Code gets the local gateway and no competing credentials', () => {
   assert.equal(env.CLAUDE_CODE_USE_BEDROCK, undefined);
   assert.equal(env.ANTHROPIC_BEDROCK_BASE_URL, undefined);
   assert.equal(env.PATH, '/usr/bin');
+});
+
+test('install.json written by PowerShell is readable despite the UTF-8 BOM', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentrouter-bom-'));
+  try {
+    const file = path.join(dir, 'install.json');
+    fs.writeFileSync(file, `\uFEFF${JSON.stringify({ version: 1, windowsPath: true })}`);
+    assert.deepEqual(readJson(file, null), { version: 1, windowsPath: true });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('spawning a .cmd shim directly fails (the bug this guards against)', { skip: !onWindows }, async () => {

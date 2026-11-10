@@ -157,7 +157,13 @@ $installRecord = [ordered]@{
     windowsPath = $true
     installedAt = (Get-Date).ToUniversalTime().ToString('o')
 }
-$installRecord | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $configDir 'install.json') -Encoding UTF8
+# Written without a BOM: Node's JSON.parse rejects the BOM that PowerShell 5.1 adds.
+$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText(
+    (Join-Path $configDir 'install.json'),
+    ($installRecord | ConvertTo-Json -Depth 4),
+    $utf8NoBom
+)
 
 Write-Host ''
 if ($version) { Write-Host "Installed: $($version.Split("`n")[0])" -ForegroundColor Green }

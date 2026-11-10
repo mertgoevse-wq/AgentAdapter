@@ -13,9 +13,14 @@ export function ensureDir(dir, mode = 0o700) {
   }
 }
 
+// Windows PowerShell 5.1 writes UTF-8 with a BOM; JSON.parse rejects it.
+function stripBom(text) {
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+}
+
 export function readJson(file, fallback = null) {
   try {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
+    return JSON.parse(stripBom(fs.readFileSync(file, 'utf8')));
   } catch {
     return fallback;
   }
@@ -23,7 +28,7 @@ export function readJson(file, fallback = null) {
 
 export function readText(file, fallback = null) {
   try {
-    return fs.readFileSync(file, 'utf8');
+    return stripBom(fs.readFileSync(file, 'utf8'));
   } catch {
     return fallback;
   }
