@@ -30,6 +30,8 @@ This file is deliberately blunt. "Implemented" means the code exists and its uni
 | `undo` | Verified for install + desktop | Same code path | Implemented, not run |
 | `--full` reasoning mode | Not tested live | Not tested | Not tested |
 
+The 18 unit tests also run in GitHub Actions on `ubuntu-latest` and `windows-latest` with Node 20, 22 and 24. All six jobs passed on commit `0d56960`. That covers cross-platform unit code (paths, translation, HTTP server, sandbox rule), not the Windows installer or live API calls.
+
 ## Bugs found during verification (and fixed)
 
 1. **`doctor` counted optional warnings as failures.** Desktop not installed, autostart off and "no background bridge on Android" made the command exit 1. Fixed: only required failures affect the exit code.

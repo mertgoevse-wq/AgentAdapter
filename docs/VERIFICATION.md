@@ -212,6 +212,16 @@ grep -rn "sk-[A-Za-z0-9_-]\{20,\}" --exclude-dir=.git .
 
 Result: no matches. `.gitignore` excludes credentials, logs, pid files and install records.
 
+## 14. GitHub Actions
+
+Workflow `tests` (`.github/workflows/test.yml`) ran on the pushed commit:
+
+- `ubuntu-latest` and `windows-latest`
+- Node 20, 22 and 24
+- `node --test` and `node bin/agentrouter.js --help`
+
+Result: **6 of 6 jobs successful** (run 42838273960, conclusion `success`). This verifies the unit suite and CLI parsing on both operating systems. It does not execute the Windows installer, the registry autostart, a live AgentRouter call, or the real Claude Desktop app.
+
 ## Not verified
 
 - Windows installation, PATH, registry autostart, `.cmd` wrappers.
@@ -220,3 +230,4 @@ Result: no matches. `.gitignore` excludes credentials, logs, pid files and insta
 - `--full` mode against live models.
 - Prompt-cache behavior.
 - Any macOS path.
+- Windows installer, registry autostart and `.cmd` wrappers (only the unit tests ran on Windows).
