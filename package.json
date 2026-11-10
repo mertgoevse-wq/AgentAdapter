@@ -1,0 +1,28 @@
+{
+  "name": "agent-adapter",
+  "version": "0.1.0",
+  "description": "Run Claude Code and Codex CLI on AgentRouter models through a local Anthropic/OpenAI bridge.",
+  "type": "module",
+  "bin": {
+    "agentrouter": "bin/agentrouter.js",
+    "cc-agent": "bin/cc-agent.js",
+    "codex-agent": "bin/codex-agent.js"
+  },
+  "scripts": {
+    "test": "node --test",
+    "doctor": "node bin/agentrouter.js doctor",
+    "start": "node bin/agentrouter.js serve --foreground"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "agentrouter",
+    "claude-code",
+    "codex",
+    "anthropic",
+    "openai-responses",
+    "adapter"
+  ],
+  "license": "MIT"
+}
