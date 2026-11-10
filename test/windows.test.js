@@ -12,6 +12,7 @@ import {
   quoteCmdArgument,
   runTool,
   toolCommand,
+  windowsGitBashPath,
 } from '../src/launch.js';
 import { readJson } from '../src/util.js';
 
@@ -113,6 +114,50 @@ test('Claude Code gets the local gateway and no competing credentials', () => {
   assert.equal(env.CLAUDE_CODE_USE_BEDROCK, undefined);
   assert.equal(env.ANTHROPIC_BEDROCK_BASE_URL, undefined);
   assert.equal(env.PATH, '/usr/bin');
+});
+
+test('windowsGitBashPath finds Git for Windows in Program Files', () => {
+  const env = { ProgramFiles: 'C:\\Program Files' };
+  const exists = (file) => file === 'C:\\Program Files\\Git\\bin\\bash.exe';
+  assert.equal(windowsGitBashPath({ env, exists }), 'C:\\Program Files\\Git\\bin\\bash.exe');
+});
+
+test('windowsGitBashPath honours an existing CLAUDE_CODE_GIT_BASH_PATH', () => {
+  const env = { CLAUDE_CODE_GIT_BASH_PATH: 'D:\\Git\\bin\\bash.exe' };
+  const exists = (file) => file === 'D:\\Git\\bin\\bash.exe';
+  assert.equal(windowsGitBashPath({ env, exists }), 'D:\\Git\\bin\\bash.exe');
+
+  const stale = windowsGitBashPath({
+    env: { CLAUDE_CODE_GIT_BASH_PATH: 'D:\\gone\\bash.exe' },
+    exists: () => false,
+  });
+  assert.equal(stale, null);
+});
+
+test('windowsGitBashPath derives bash.exe from the git on PATH', () => {
+  const env = { PATH: 'C:\\tools\\Git\\cmd', PATHEXT: '.EXE' };
+  const exists = (file) => /git\\cmd\\git\.exe$|git\\bin\\bash\.exe$/i.test(file);
+  assert.equal(windowsGitBashPath({ env, exists }), 'C:\\tools\\Git\\bin\\bash.exe');
+});
+
+test('Git Bash is exported to Claude Code on Windows only when it exists', () => {
+  const options = { port: 8787, token: 't', model: 'gpt-5.6-sol', contextWindow: 200000, mode: 'stable' };
+  const windows = claudeEnvironment(options, {
+    baseEnv: { ProgramFiles: 'C:\\Program Files' },
+    platform: 'win32',
+    exists: (file) => file === 'C:\\Program Files\\Git\\bin\\bash.exe',
+  });
+  assert.equal(windows.CLAUDE_CODE_GIT_BASH_PATH, 'C:\\Program Files\\Git\\bin\\bash.exe');
+
+  const withoutGit = claudeEnvironment(options, {
+    baseEnv: { ProgramFiles: 'C:\\Program Files' },
+    platform: 'win32',
+    exists: () => false,
+  });
+  assert.equal(withoutGit.CLAUDE_CODE_GIT_BASH_PATH, undefined);
+
+  const linux = claudeEnvironment(options, { baseEnv: {}, platform: 'linux' });
+  assert.equal(linux.CLAUDE_CODE_GIT_BASH_PATH, undefined);
 });
 
 test('install.json written by PowerShell is readable despite the UTF-8 BOM', () => {

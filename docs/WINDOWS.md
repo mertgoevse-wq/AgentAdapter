@@ -2,6 +2,50 @@
 
 This guide assumes Claude Code is currently routed through OmniRoute or CC-Switch to NVIDIA. You do **not** need to switch that off to clone or develop AgentAdapter.
 
+## 0. Native Windows only — WSL is never required
+
+AgentAdapter is plain Node.js and Claude Code ships a native Windows build, so
+the whole chain runs from PowerShell or CMD. Nothing here uses `wsl.exe`, a
+Linux distribution, Git Bash or a POSIX shell.
+
+| Piece | Native requirement |
+|---|---|
+| AgentAdapter bridge | Node.js 20+ (Windows 10 1809+ or Server 2019+, x64/ARM64) |
+| Claude Code | `claude.exe` from the native installer, or the npm package (win32-x64/win32-arm64 are supported) |
+| Codex CLI | `npm install -g @openai/codex` (`codex.cmd`) |
+| Bash tool inside Claude Code | Optional: Git for Windows. Without it Claude Code uses its PowerShell tool |
+| Sandboxed command execution | Not supported natively; only WSL 2 offers it. This is a Claude Code limitation, not an AgentAdapter one |
+
+Install Claude Code natively (no WSL, no administrator rights):
+
+```powershell
+irm https://claude.ai/install.ps1 | iex
+# or
+winget install Anthropic.ClaudeCode
+# or
+npm install -g @anthropic-ai/claude-code
+```
+
+The native installer places `claude.exe` in `%USERPROFILE%\.local\bin`;
+`cc-agent` also looks there, in `%APPDATA%\npm` and on PATH, and prefers a
+native `.exe` over a `.cmd` shim.
+
+Git for Windows is optional but recommended, because most repositories assume
+Bash syntax:
+
+```powershell
+winget install --id Git.Git -e
+```
+
+When Git Bash is present, `cc-agent` passes `CLAUDE_CODE_GIT_BASH_PATH` to
+Claude Code so the Bash tool works without guessing. When it is absent, Claude
+Code uses PowerShell and `agentrouter doctor` reports that as a warning, not a
+failure.
+
+If a guide or an error tells you to install WSL for this setup: that advice
+predates native Windows support. The only thing that genuinely needs WSL 2 is
+Claude Code's sandbox mode.
+
 ## 1. Clone without touching the current route
 
 ```powershell
@@ -202,6 +246,9 @@ Removes the desktop profile (restoring `_meta.json`), autostart entry, launcher 
 | `claude` starts but reports `There's an issue with the selected model` | The request reached AgentRouter with a model it does not serve | `agentrouter models` to list valid IDs; `cc-agent -m <id>` |
 | Claude Code exits immediately after `agentrouter` starts | A stale `ANTHROPIC_API_KEY`, OAuth token or Bedrock/Vertex switch was inherited | `cc-agent` strips all of them for its child process; check `cc-agent --dry-run` shows your model and `http://127.0.0.1:<port>` |
 | `Port 8787 is already in use` | Another bridge or app | `agentrouter serve --port 8788`, or stop the other process |
+| A guide or error says WSL is required | Outdated advice, or Claude Code was installed with the Linux installer inside a WSL-only shell | Install natively: `irm https://claude.ai/install.ps1 | iex`, then run `agentrouter doctor`; WSL is only needed for Claude Code's sandbox mode |
+| `Claude Code on Windows requires either Git for Windows (for bash) or PowerShell` | Neither shell was found | Add `%SystemRoot%\System32\WindowsPowerShell\v1.0` to PATH, or install Git for Windows (`winget install --id Git.Git -e`) |
+| Claude Code says it cannot find Git Bash | Git installed outside PATH and the default folders | `agentrouter doctor` shows the detected path; otherwise set `CLAUDE_CODE_GIT_BASH_PATH` to `C:\Program Files\Git\bin\bash.exe` |
 
 Diagnostics: `agentrouter status`, `agentrouter doctor --quick`, then
 `%APPDATA%\agentrouter\logs\agentrouter.log`.

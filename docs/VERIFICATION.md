@@ -250,7 +250,7 @@ The bootstrap one-liner downloaded the archive, installed from it and removed
 the temporary files. `install.json` was written without a BOM and `readJson`
 returned the recorded install directory, launcher paths and `windowsPath` flag.
 
-Unit tests: **30 total, 28 passed, 2 skipped** on Linux. The two skipped tests
+Unit tests: **34 total, 32 passed, 2 skipped** on Linux. The two skipped tests
 run only on Windows (`process.platform === 'win32'`):
 
 - `spawning a .cmd shim directly fails` — pins the `spawn EINVAL` behaviour this
@@ -266,6 +266,30 @@ of the launcher path, but it is CI, not the reporter's laptop.
 The installer was **not** executed by Windows PowerShell 5.1, and the registry
 autostart, Claude Desktop and real Claude Code sessions were not exercised on
 Windows hardware.
+
+## 16. Native Windows path (no WSL)
+
+Implemented and unit-tested, not executed on Windows:
+
+- `cc-agent` resolves `claude.exe` from `%USERPROFILE%\.local\bin`, the npm shim
+  from `%APPDATA%\npm`, and anything on PATH; a native `.exe` wins over a `.cmd`.
+- `CLAUDE_CODE_GIT_BASH_PATH` is exported when Git Bash exists
+  (`%ProgramFiles%\Git\bin\bash.exe`, `%ProgramFiles(x86)%`, or next to the
+  `git.exe` on PATH). Without Git for Windows the variable stays unset and
+  Claude Code uses its PowerShell tool.
+- Missing CLI messages list the native installers
+  (`irm https://claude.ai/install.ps1 | iex`, `winget install Anthropic.ClaudeCode`,
+  `npm install -g @anthropic-ai/claude-code`) and state that WSL is not needed.
+- `install.ps1` reports whether Claude Code, Codex and Git Bash were found.
+- `agentrouter doctor` on Windows adds a `Command shell (Win)` line naming the
+  detected Git Bash or the PowerShell-tool fallback.
+
+Observed here (Linux, PowerShell 7.4): `node --test` green with the new Git Bash
+and environment tests; the installer completed and printed its native-Windows
+check block with "Claude Code is not installed" / "Codex CLI … optional" for the
+empty sandbox. The WSL-free behaviour of the real Claude Code binary was not
+executed, because no Windows machine and no live AgentRouter key are available
+in this environment.
 
 ## Not verified
 

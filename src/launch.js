@@ -6,9 +6,24 @@ import { ensureDir, writeFileAtomic } from './util.js';
 
 const WINDOWS_DEFAULT_PATHEXT = '.COM;.EXE;.BAT;.CMD';
 
+// Claude Code runs natively on Windows; WSL is never required. The native
+// installer puts claude.exe in %USERPROFILE%\.local\bin.
 const INSTALL_HINT = {
-  claude: 'npm install -g @anthropic-ai/claude-code',
-  codex: 'npm install -g @openai/codex',
+  claude: {
+    win32: [
+      '  irm https://claude.ai/install.ps1 | iex        (native Windows, no WSL)',
+      '  winget install Anthropic.ClaudeCode',
+      '  npm install -g @anthropic-ai/claude-code',
+    ],
+    default: [
+      '  npm install -g @anthropic-ai/claude-code',
+      '  curl -fsSL https://claude.ai/install.sh | bash',
+    ],
+  },
+  codex: {
+    win32: ['  npm install -g @openai/codex', '  winget install OpenAI.Codex'],
+    default: ['  npm install -g @openai/codex'],
+  },
 };
 
 /**
@@ -111,19 +126,59 @@ export function toolCommand(
   };
 }
 
+/**
+ * Git Bash from Git for Windows, if it is installed. Claude Code uses it for
+ * the Bash tool on native Windows and falls back to its PowerShell tool when it
+ * is absent; neither case needs WSL.
+ */
+export function windowsGitBashPath({ env = process.env, exists = fs.existsSync } = {}) {
+  const configured = env.CLAUDE_CODE_GIT_BASH_PATH;
+  if (configured && exists(configured)) return configured;
+
+  const dirs = [];
+  if (env.ProgramFiles) dirs.push(path.win32.join(env.ProgramFiles, 'Git', 'bin'));
+  if (env['ProgramFiles(x86)']) dirs.push(path.win32.join(env['ProgramFiles(x86)'], 'Git', 'bin'));
+  if (env.LOCALAPPDATA) dirs.push(path.win32.join(env.LOCALAPPDATA, 'Programs', 'Git', 'bin'));
+  for (const dir of dirs) {
+    const candidate = path.win32.join(dir, 'bash.exe');
+    if (exists(candidate)) return candidate;
+  }
+
+  const git = findExecutable('git', { env, exists });
+  if (git) {
+    const candidate = path.win32.normalize(
+      path.win32.join(path.win32.dirname(git), '..', 'bin', 'bash.exe'),
+    );
+    if (exists(candidate)) return candidate;
+  }
+  return null;
+}
+
+/** Which shell Claude Code will use for its commands on this machine. */
+export function windowsShellReport(options = {}) {
+  const bash = windowsGitBashPath(options);
+  return {
+    gitBash: bash,
+    detail: bash
+      ? `Git Bash: ${bash}`
+      : 'PowerShell tool (Git for Windows is optional; WSL is not required)',
+  };
+}
+
 function missingToolMessage(name, { platform }) {
-  const hint = INSTALL_HINT[name];
-  const lines = [`"${name}" was not found in PATH. Install it first and try again.`];
-  if (hint) lines.push(`  ${hint}`);
+  const hints = INSTALL_HINT[name];
+  const list = hints ? hints[platform] || hints.default : null;
+  const lines = [`"${name}" was not found. Install it first and try again:`];
+  if (list) lines.push(...list);
   if (platform === 'win32') {
-    lines.push('Then open a new terminal so the PATH change is visible.');
+    lines.push('Native Windows works without WSL; reopen the terminal afterwards so PATH is picked up.');
   }
   return lines.join('\n');
 }
 
 export function claudeEnvironment(
   { port, token, model, contextWindow, mode },
-  { baseEnv = process.env } = {},
+  { baseEnv = process.env, platform = process.platform, exists = fs.existsSync } = {},
 ) {
   const env = { ...baseEnv };
 
@@ -156,6 +211,13 @@ export function claudeEnvironment(
   env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(contextWindow);
   env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = '1';
   if (mode === 'stable') env.CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING = '1';
+
+  // Native Windows: hand Claude Code the Git Bash it cannot always locate, so
+  // the Bash tool works. Without Git for Windows it uses its PowerShell tool.
+  if (platform === 'win32' && !env.CLAUDE_CODE_GIT_BASH_PATH) {
+    const bash = windowsGitBashPath({ env: baseEnv, exists });
+    if (bash) env.CLAUDE_CODE_GIT_BASH_PATH = bash;
+  }
   return env;
 }
 

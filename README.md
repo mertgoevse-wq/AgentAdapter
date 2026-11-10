@@ -129,7 +129,16 @@ codex-agent
 agentrouter desktop on
 ```
 
-The installer uses `%LOCALAPPDATA%\Programs\agentrouter`, adds that folder to your **user** PATH, and needs no administrator rights. It finds Node 20+ itself, calls Node by absolute path from the `.cmd` wrappers, and verifies the installed copy before it finishes.
+The installer uses `%LOCALAPPDATA%\Programs\agentrouter`, adds that folder to your **user** PATH, and needs no administrator rights. It finds Node 20+ itself, calls Node by absolute path from the `.cmd` wrappers, verifies the installed copy, and reports whether Claude Code, Codex and Git Bash are present.
+
+**Native Windows only — WSL is never required.** Everything runs from PowerShell or CMD. Claude Code has a native Windows build:
+
+```powershell
+irm https://claude.ai/install.ps1 | iex     # or: winget install Anthropic.ClaudeCode
+winget install --id Git.Git -e              # optional, enables the Bash tool
+```
+
+AgentAdapter finds `claude.exe` in `%USERPROFILE%\.local\bin`, the npm shim in `%APPDATA%\npm` and anything on PATH, and passes `CLAUDE_CODE_GIT_BASH_PATH` when Git Bash is installed. Without Git for Windows, Claude Code uses its PowerShell tool. Only Claude Code's sandbox mode needs WSL 2.
 
 Claude Code and Codex are `.cmd` shims on Windows, which Node refuses to spawn directly since 20.12 (`spawn EINVAL`). The launchers resolve the shim and run it through `cmd.exe`, so `cc-agent` and `codex-agent` start them correctly.
 
@@ -239,6 +248,7 @@ More: [`SECURITY.md`](SECURITY.md).
 | `claude: not found` | CLI not installed | `npm install -g @anthropic-ai/claude-code` |
 | `spawn EINVAL` on Windows | Node refuses to spawn a `.cmd` shim directly | Update to the current version; `cc-agent`/`codex-agent` route shims through `cmd.exe` |
 | `install.ps1 cannot be loaded because running scripts is disabled` | PowerShell execution policy | `scripts\install.cmd`, or `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install.ps1` |
+| Everything works but a guide says "install WSL" | Outdated advice | Native Windows is supported: `irm https://claude.ai/install.ps1 | iex`. Only Claude Code's sandbox mode needs WSL 2 |
 | Model list is empty | Key has no OpenAI-compatible models | Check the key's group in AgentRouter |
 
 Logs: `~/.config/agentrouter/logs/agentrouter.log` (`%APPDATA%\agentrouter\logs` on Windows). `agentrouter doctor` is the fastest first step.

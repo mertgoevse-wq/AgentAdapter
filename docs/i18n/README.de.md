@@ -112,7 +112,16 @@ codex-agent
 agentrouter desktop on
 ```
 
-Der Installer nutzt `%LOCALAPPDATA%\Programs\agentrouter`, trägt den Ordner nur in den **Benutzer**-PATH ein und braucht keine Administratorrechte. Er findet Node 20+ selbst, ruft Node in den `.cmd`-Startern über den absoluten Pfad auf und prüft die Installation mit `agentrouter version`.
+Der Installer nutzt `%LOCALAPPDATA%\Programs\agentrouter`, trägt den Ordner nur in den **Benutzer**-PATH ein und braucht keine Administratorrechte. Er findet Node 20+ selbst, ruft Node in den `.cmd`-Startern über den absoluten Pfad auf, prüft die Installation mit `agentrouter version` und meldet, ob Claude Code, Codex und Git Bash vorhanden sind.
+
+**Nur natives Windows – WSL ist nie nötig.** Claude Code hat einen nativen Windows-Build:
+
+```powershell
+irm https://claude.ai/install.ps1 | iex     # oder: winget install Anthropic.ClaudeCode
+winget install --id Git.Git -e              # optional, aktiviert das Bash-Werkzeug
+```
+
+AgentAdapter findet `claude.exe` in `%USERPROFILE%\.local\bin`, den npm-Shim in `%APPDATA%\npm` und alles im PATH und setzt `CLAUDE_CODE_GIT_BASH_PATH`, wenn Git Bash installiert ist. Ohne Git for Windows nutzt Claude Code sein PowerShell-Werkzeug. Nur der Sandbox-Modus von Claude Code braucht WSL 2.
 
 Claude Code und Codex sind unter Windows `.cmd`-Shims, die Node seit 20.12 nicht mehr direkt startet (`spawn EINVAL`). `cc-agent` und `codex-agent` starten sie deshalb über `cmd.exe`.
 

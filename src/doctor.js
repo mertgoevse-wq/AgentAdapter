@@ -6,7 +6,7 @@ import { fetchModels, postResponses, upstreamBaseUrl, extractErrorMessage } from
 import { ensureService, stopService, serviceStatus } from './service.js';
 import { desktopStatus } from './desktop.js';
 import { autostartStatus } from './autostart.js';
-import { toolCommand } from './launch.js';
+import { toolCommand, windowsShellReport } from './launch.js';
 import { maskKey } from './util.js';
 
 function localJson(port, token, requestPath, body = null, timeout = 120000) {
@@ -219,6 +219,13 @@ export async function runDoctor({ json = false, quick = false, logger = null } =
   const codexVersion = versionOf('codex');
   add('Claude Code', Boolean(claudeVersion), claudeVersion || 'not found in PATH', claudeVersion ? 'ok' : 'warn');
   add('Codex CLI', Boolean(codexVersion), codexVersion || 'not found in PATH', codexVersion ? 'ok' : 'warn');
+
+  if (process.platform === 'win32') {
+    // Native Windows only: Claude Code runs without WSL, and the Bash tool just
+    // needs Git Bash when it is available.
+    const shell = windowsShellReport();
+    add('Command shell (Win)', true, shell.detail, shell.gitBash ? 'ok' : 'warn');
+  }
 
   const service = await serviceStatus(config);
   add(

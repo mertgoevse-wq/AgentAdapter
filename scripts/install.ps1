@@ -57,6 +57,33 @@ function Resolve-NodeExe {
     return $null
 }
 
+function Find-ToolPath([string]$name) {
+    $files = @($name, "$name.exe", "$name.cmd", "$name.bat")
+    $dirs = @()
+    foreach ($entry in ($env:Path -split ';')) { if ($entry.Trim()) { $dirs += $entry.Trim() } }
+    if ($env:USERPROFILE) { $dirs += (Join-Path $env:USERPROFILE '.local\bin') }
+    if ($env:APPDATA) { $dirs += (Join-Path $env:APPDATA 'npm') }
+    if ($env:LOCALAPPDATA) { $dirs += (Join-Path $env:LOCALAPPDATA 'Programs\claude') }
+    foreach ($dir in $dirs) {
+        foreach ($file in $files) {
+            $candidate = Join-Path $dir $file
+            if (Test-Path -LiteralPath $candidate) { return (Resolve-Path -LiteralPath $candidate).Path }
+        }
+    }
+    return $null
+}
+
+function Find-GitBash {
+    $candidates = @()
+    if ($env:ProgramFiles) { $candidates += (Join-Path $env:ProgramFiles 'Git\bin\bash.exe') }
+    if (${env:ProgramFiles(x86)}) { $candidates += (Join-Path ${env:ProgramFiles(x86)} 'Git\bin\bash.exe') }
+    if ($env:LOCALAPPDATA) { $candidates += (Join-Path $env:LOCALAPPDATA 'Programs\Git\bin\bash.exe') }
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate) { return (Resolve-Path -LiteralPath $candidate).Path }
+    }
+    return $null
+}
+
 function Add-UserPath([string]$directory) {
     $normalized = $directory.TrimEnd('\')
     $current = [Environment]::GetEnvironmentVariable('Path', 'User')
@@ -167,6 +194,35 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
 Write-Host ''
 if ($version) { Write-Host "Installed: $($version.Split("`n")[0])" -ForegroundColor Green }
+
+# Native Windows only: AgentAdapter never uses WSL, neither does Claude Code.
+Write-Host 'Native Windows check (WSL is not required):'
+$claudePath = Find-ToolPath 'claude'
+if ($claudePath) {
+    Write-Host "  Claude Code: $claudePath"
+}
+else {
+    Write-Host '  Claude Code is not installed. In PowerShell run:' -ForegroundColor Yellow
+    Write-Host '    irm https://claude.ai/install.ps1 | iex'
+    Write-Host '    (or: winget install Anthropic.ClaudeCode)'
+}
+$codexPath = Find-ToolPath 'codex'
+if ($codexPath) {
+    Write-Host "  Codex CLI:   $codexPath"
+}
+else {
+    Write-Host '  Codex CLI is not installed (optional): npm install -g @openai/codex' -ForegroundColor Yellow
+}
+$gitBash = Find-GitBash
+if ($gitBash) {
+    Write-Host "  Git Bash:    $gitBash (cc-agent passes it to Claude Code)"
+}
+else {
+    Write-Host '  Git for Windows not found. Optional: Claude Code then uses its PowerShell tool.'
+    Write-Host '    winget install --id Git.Git -e'
+}
+
+Write-Host ''
 Write-Host 'Run these in a NEW PowerShell window (PATH changes need one):'
 Write-Host ''
 Write-Host '  agentrouter login'
